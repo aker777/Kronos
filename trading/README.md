@@ -20,6 +20,7 @@ trading/
   metrics.py       # Sharpe, max drawdown, hit-rate, win-rate, buy&hold
   backtest.py      # TRUE walk-forward backtest + baselines + charts
   sweep.py         # parameter sweep (thresholds/T/top_p/sample_count)
+  ic_report.py     # information-coefficient report over the sweep cache
   live_signal.py   # today's signals for the universe
 ```
 
@@ -131,6 +132,19 @@ re-evaluated instantly from cached per-sample returns
 (`trading/backtest_results/sweep_cache/`, reused across runs — `--refresh` to
 force). Output is a ranked combo table plus `sweep_results.csv`. Rank on the
 `oos_*` columns; the best purely in-sample combo is overfit by construction.
+
+### IC first — before believing any combo table
+
+```bash
+python -m trading.ic_report        # after a sweep
+```
+
+Prints, per ticker, the **information coefficient** (correlation between the
+forecast and what actually happened) with its 2/√n noise bar. If a ticker's
+|IC| is below the noise bar, Kronos has **no signal there** and no threshold or
+vote setting can create one — remove the ticker or change the model, don't keep
+tuning. (Empirically, developed-market tickers sit at IC ≈ 0; EM names are
+where any signal has appeared.)
 
 ### How to judge if it's worth trading
 Look for **all** of these, not just a big total return:

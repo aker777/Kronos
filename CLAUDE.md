@@ -25,6 +25,7 @@ trading/
   metrics.py       # Sharpe, max drawdown, hit-rate, win-rate (ported from run_backtest_kronos.py)
   backtest.py      # TRUE walk-forward backtest (no look-ahead) + baselines + OOS split + charts
   sweep.py         # parameter sweep: T/top_p via model passes; thresholds/votes offline from cache
+  ic_report.py     # IC (forecast-vs-realised correlation) per ticker from the sweep cache
   live_signal.py   # today's signals table for manual execution
   README.md        # full setup + validation runbook
 ```
@@ -68,7 +69,12 @@ YYYY-MM-DD` (separate out-of-sample metrics), `--limit N`, `--tickers ...`.
 `sweep.py` mirrors them plus `--refresh` (ignore the sample cache).
 
 Validation workflow: tune with `--end CUTOFF` (backtest + sweep), then confirm
-once with `--oos-start CUTOFF` on the untouched range.
+once with `--oos-start CUTOFF` on the untouched range. **IC first**: run
+`python -m trading.ic_report` after a sweep — tickers with |IC| under the
+2/sqrt(n) noise bar have no extractable signal; don't tune rules on them.
+Campaign result 2026-07: developed markets IC ≈ 0 (dead end); EM names are the
+only ones showing IC above noise. Data cache self-widens (sidecar .meta files)
+and always fetches to the present, so `--end` runs can't truncate it.
 
 ### Gotchas
 - Run as a module (`python -m trading.backtest`) from repo root — not `python trading\backtest.py`.

@@ -31,6 +31,9 @@ data:
 # ---- Signal generation ------------------------------------------------------
 signal:
   # Predicted return over the horizon = pred_close[-1] / last_close - 1
+  # NOTE: two full tune/confirm campaigns (2026-07) found NO combo that beats
+  # buy-and-hold + momentum out-of-sample, zero-shot, on developed OR EM names.
+  # These defaults are placeholders, not validated settings.
   buy_threshold: 0.01       # BUY  if predicted return > +1%
   sell_threshold: -0.01     # SELL/exit if predicted return < -1%
   sample_count: 10          # Monte-Carlo samples averaged per forecast (>=1)
@@ -51,7 +54,7 @@ backtest:
 # T x top_p combos each need a model pass; thresholds / min_votes / sample_counts
 # are evaluated offline from cached per-sample returns (cheap).
 sweep:
-  thresholds: [0.005, 0.01, 0.02]   # BUY at +x / SELL at -x
+  thresholds: [0.0, 0.005, 0.01, 0.02]   # BUY at +x / SELL at -x (0.0 = pure sign rule)
   min_votes: [0.5, 0.6, 0.7]        # directional-vote gate
   T: [0.8, 1.0]                     # sampling temperature
   top_p: [0.9]                      # nucleus sampling
@@ -74,10 +77,14 @@ universe:
     - { ticker: "EUNM.DE", name: "iShares MSCI EM",          tradable: true }
   asia:
     - { ticker: "0700.HK", name: "Tencent",                  tradable: false }
+    - { ticker: "9988.HK", name: "Alibaba (HK)",             tradable: false }
     - { ticker: "RELIANCE.NS", name: "Reliance Industries",  tradable: false }
+    - { ticker: "INFY.NS", name: "Infosys",                  tradable: false }
     - { ticker: "005930.KS",   name: "Samsung Electronics",  tradable: false }
+    - { ticker: "2330.TW", name: "TSMC (Taipei)",            tradable: false }
   africa_mea:
     - { ticker: "NPN.JO",  name: "Naspers (Johannesburg)",   tradable: false }
     - { ticker: "2222.SR", name: "Saudi Aramco",             tradable: false }
   latam:
     - { ticker: "PETR4.SA",name: "Petrobras (Brazil)",       tradable: false }
+    - { ticker: "VALE3.SA",name: "Vale (Brazil)",            tradable: false }

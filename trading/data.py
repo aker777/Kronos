@@ -34,6 +34,31 @@ def _clip(df: pd.DataFrame, start: str | None, end: str | None) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+def _read_cache_meta(cache_file: str) -> str | None:
+    """The `start` recorded when the cache was fetched ('' = from the very
+    beginning). None = legacy cache without a sidecar meta file."""
+    try:
+        with open(cache_file + ".meta", "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return None
+
+
+def _cache_covers_start(cache_file: str, df: pd.DataFrame, start: str | None) -> bool:
+    """True if the cached fetch already covered the requested `start`.
+
+    A cache fetched for 2023+ must NOT silently serve a 2020+ request (that
+    bug once shrank a ticker's backtest history by 4x). The meta file also
+    lets instruments younger than `start` avoid refetching on every run.
+    """
+    meta = _read_cache_meta(cache_file)
+    if meta is not None:
+        return meta == "" or (start is not None and pd.Timestamp(meta) <= pd.Timestamp(start))
+    if start is None:
+        return False  # full history requested; a legacy cache can't prove coverage
+    return df["timestamps"].iloc[0] <= pd.Timestamp(start) + pd.Timedelta(days=7)
+
+
 def fetch_ohlcv(
     ticker: str,
     interval: str = "1d",
@@ -56,7 +81,9 @@ def fetch_ohlcv(
         cache_file = _cache_path(cache_dir, ticker, interval)
         if cache_file and os.path.exists(cache_file) and not refresh:
             df = pd.read_csv(cache_file, parse_dates=["timestamps"])
-            return _clip(df[KRONOS_COLS], start, end)
+            if _cache_covers_start(cache_file, df, start):
+                return _clip(df[KRONOS_COLS], start, end)
+            # cache too narrow for the requested start -> fall through, refetch wider
 
     import yfinance as yf  # imported lazily so the module loads without yfinance
 
@@ -64,7 +91,8 @@ def fetch_ohlcv(
         ticker,
         interval=interval,
         start=start,
-        end=end,
+        end=None,              # always fetch to the present; `end` is applied by _clip
+                               # below, so a tuning-window run can't truncate the cache
         auto_adjust=True,      # adjust for splits/dividends -> cleaner returns
         progress=False,
         threads=False,
@@ -97,6 +125,8 @@ def fetch_ohlcv(
 
     if cache_file:
         df.to_csv(cache_file, index=False)
+        with open(cache_file + ".meta", "w", encoding="utf-8") as fh:
+            fh.write(start or "")
     return _clip(df, start, end)
 
 
