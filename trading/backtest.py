@@ -20,12 +20,13 @@ matplotlib.use("Agg")  # headless: save PNGs, no display
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from trading import metrics
 from trading.config import load_config, iter_universe
 from trading.data import load_ticker
 from trading.predictor import KronosSignalModel
-from trading.signals import BUY, SELL, HOLD, signal_from_return
+from trading.signals import BUY, SELL, HOLD, signal_from_return, signal_from_dist
 
 
 def _decision_indices(n: int, lookback: int, pred_len: int, step: int) -> list[int]:
@@ -36,8 +37,13 @@ def _decision_indices(n: int, lookback: int, pred_len: int, step: int) -> list[i
 
 
 def backtest_ticker(model: KronosSignalModel, df: pd.DataFrame, cfg: dict,
-                    fast: bool = False) -> dict:
-    """Run the walk-forward backtest for one ticker. Returns records + metrics."""
+                    fast: bool = False, limit: int | None = None,
+                    ticker: str = "") -> dict:
+    """Run the walk-forward backtest for one ticker. Returns records + metrics.
+
+    `limit` caps the number of decision points (quick smoke runs). A tqdm bar
+    shows live progress so a long run never looks like a silent stall.
+    """
     lookback = cfg["data"]["lookback"]
     pred_len = cfg["data"]["pred_len"]
     step = cfg["backtest"].get("step", 1)
@@ -48,10 +54,12 @@ def backtest_ticker(model: KronosSignalModel, df: pd.DataFrame, cfg: dict,
     idxs = _decision_indices(len(df), lookback, pred_len, step)
     if not idxs:
         raise ValueError("Not enough bars for even one decision; lower lookback/pred_len.")
+    if limit:
+        idxs = idxs[:limit]
 
     rows = []
     position = 0  # long/flat carried between decisions
-    for t in idxs:
+    for t in tqdm(idxs, desc=f"  {ticker or 'backtest'}", unit="dec", leave=False):
         # --- forecast using only data up to and including bar t ---
         if fast:
             pred = model.forecast(df, end_idx=t, sample_count=1,
@@ -62,7 +70,6 @@ def backtest_ticker(model: KronosSignalModel, df: pd.DataFrame, cfg: dict,
         else:
             dist = model.forecast_dist(df, end_idx=t, n_samples=n_samples,
                                        T=sig_cfg["T"], top_p=sig_cfg["top_p"])
-            from trading.signals import signal_from_dist
             sig = signal_from_dist(dist, sig_cfg)
             pred_ret, action, last_close = sig.horizon_return, sig.action, sig.last_close
 
@@ -155,9 +162,16 @@ def main() -> None:
     ap.add_argument("--tickers", nargs="*", help="override universe with these tickers")
     ap.add_argument("--fast", action="store_true", help="1-sample threshold signal (faster)")
     ap.add_argument("--all", action="store_true", help="include research-only tickers")
+    ap.add_argument("--step", type=int, help="override backtest.step (bars between decisions)")
+    ap.add_argument("--start", help="override data.history_start, e.g. 2023-01-01")
+    ap.add_argument("--limit", type=int, help="cap decisions per ticker (quick smoke run)")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
+    if args.step:
+        cfg["backtest"]["step"] = args.step
+    if args.start:
+        cfg["data"]["history_start"] = args.start
     if args.tickers:
         tickers = [(None, t, t) for t in args.tickers]
     else:
@@ -166,18 +180,29 @@ def main() -> None:
     model = KronosSignalModel(cfg)
     print(f"Loaded {cfg['model']['name']} on {model.device}. "
           f"Backtesting {len(tickers)} tickers ({'fast' if args.fast else 'full'} mode).")
+    calls = 1 if args.fast else cfg["signal"].get("sample_count", 10)
+    print(f"Config: step={cfg['backtest'].get('step', 1)}, lookback={cfg['data']['lookback']}, "
+          f"pred_len={cfg['data']['pred_len']}, history from {cfg['data'].get('history_start')}, "
+          f"{calls} model call(s)/decision"
+          + (f", limit={args.limit} decisions" if args.limit else "") + ".")
 
     summary = []
     for _region, ticker, _name in tickers:
         try:
             df = load_ticker(ticker, cfg)
-            out = backtest_ticker(model, df, cfg, fast=args.fast)
+            n_dec = len(_decision_indices(len(df), cfg["data"]["lookback"],
+                                          cfg["data"]["pred_len"], cfg["backtest"].get("step", 1)))
+            if args.limit:
+                n_dec = min(n_dec, args.limit)
+            print(f"\n-> {ticker}: {len(df)} bars, {n_dec} decisions "
+                  f"(~{n_dec * calls} forecasts)...", flush=True)
+            out = backtest_ticker(model, df, cfg, fast=args.fast, limit=args.limit, ticker=ticker)
             png = plot_result(ticker, out, cfg["backtest"]["out_dir"])
             _print_metrics(ticker, out["metrics"])
             print(f"  chart -> {png}")
             summary.append({"ticker": ticker, **out["metrics"]})
         except Exception as e:  # keep going across the basket
-            print(f"\n=== {ticker} ===\n  SKIPPED: {e}")
+            print(f"  SKIPPED {ticker}: {e}")
 
     if summary:
         sdf = pd.DataFrame(summary).set_index("ticker")
