@@ -21,8 +21,9 @@ data:
   interval: "1d"            # "1d" daily (primary) or "1h" hourly (EU intraday ~730d only)
   lookback: 400             # historical bars fed to the model (keep <= max_context)
   pred_len: 5               # bars to forecast ahead
-  history_start: "2015-01-01"   # earliest date to fetch (daily)
-  cache_dir: "trading/data_cache"
+  history_start: "2020-01-01"   # earliest date to fetch (daily)
+  history_end: null         # cap history (e.g. "2025-01-01" to tune, then confirm on the rest)
+  cache_dir: "trading/data_cache"   # cache stores what was fetched; refresh=True to widen
   # Data-quality guards (mainly for thin emerging-market names)
   min_bars: 250             # skip tickers with fewer usable bars
   max_gap_days: 10          # warn if consecutive daily bars are farther apart than this
@@ -41,8 +42,20 @@ signal:
 backtest:
   initial_capital: 10000
   fee_bps: 10               # round-trip-ish cost per trade, in basis points (0.10%)
-  step: 1                   # walk-forward stride in bars (1 = every bar; >1 = faster/coarser)
+  step: 10                  # walk-forward stride in bars (1 = every bar; >1 = faster/coarser)
+  momentum_window: 126      # naive momentum baseline: long iff trailing N-bar return > 0
+  oos_start: null           # e.g. "2025-01-01": report separate out-of-sample metrics
   out_dir: "trading/backtest_results"
+
+# ---- Parameter sweep (python -m trading.sweep) --------------------------------
+# T x top_p combos each need a model pass; thresholds / min_votes / sample_counts
+# are evaluated offline from cached per-sample returns (cheap).
+sweep:
+  thresholds: [0.005, 0.01, 0.02]   # BUY at +x / SELL at -x
+  min_votes: [0.5, 0.6, 0.7]        # directional-vote gate
+  T: [0.8, 1.0]                     # sampling temperature
+  top_p: [0.9]                      # nucleus sampling
+  sample_counts: [5, 10]            # Monte-Carlo votes per decision
 
 # ---- Universe ---------------------------------------------------------------
 # Group by region. `tradable: true`  = directly buyable on your broker (TR / Bourse Direct).

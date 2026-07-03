@@ -18,7 +18,8 @@ trading/
   predictor.py     # load Kronos once; forecast a lookback window
   signals.py       # forecast -> BUY/HOLD/SELL (threshold + directional vote)
   metrics.py       # Sharpe, max drawdown, hit-rate, win-rate, buy&hold
-  backtest.py      # TRUE walk-forward backtest + charts
+  backtest.py      # TRUE walk-forward backtest + baselines + charts
+  sweep.py         # parameter sweep (thresholds/T/top_p/sample_count)
   live_signal.py   # today's signals for the universe
 ```
 
@@ -89,21 +90,57 @@ python -m trading.backtest --fast
 
 # specific tickers, including research-only names
 python -m trading.backtest --tickers AAPL CW8.PA 0700.HK NPN.JO --all
+
+# quick smoke run
+python -m trading.backtest --fast --tickers AAPL --step 20 --start 2023-01-01
 ```
 
 For each ticker you get an equity-curve + drawdown PNG in
-`trading/backtest_results/`, plus a metrics table and an aggregate summary CSV.
+`trading/backtest_results/` (strategy vs **buy & hold** vs a naive
+**momentum baseline** — long iff the trailing `momentum_window`-bar return is
+positive, same fees), plus a metrics table and an aggregate summary CSV.
 The backtest is **walk-forward**: at each step the model sees only past bars, and
 the signal is marked against the *actual* future move — no look-ahead.
+
+### Out-of-sample validation (the honest protocol)
+
+Never judge a parameter choice on the data you tuned it on:
+
+```bash
+# 1. tune on history up to a cutoff only
+python -m trading.backtest --end 2025-01-01
+python -m trading.sweep    --end 2025-01-01
+
+# 2. confirm ONCE on the untouched range (separate OOS metrics are reported)
+python -m trading.backtest --oos-start 2025-01-01
+```
+
+`--oos-start` prints a per-ticker `OUT-OF-SAMPLE` block, adds `oos_*` columns to
+`summary.csv`, and draws the split line on the charts.
+
+### Parameter sweep
+
+```bash
+python -m trading.sweep --tickers AAPL CW8.PA --oos-start 2025-01-01
+python -m trading.sweep --tickers AAPL --step 20 --start 2024-01-01 --limit 30  # smoke
+```
+
+The grid lives under `sweep:` in `config.yaml`. Only `T` × `top_p` combinations
+need model passes; every `threshold` / `min_vote` / `sample_count` combination is
+re-evaluated instantly from cached per-sample returns
+(`trading/backtest_results/sweep_cache/`, reused across runs — `--refresh` to
+force). Output is a ranked combo table plus `sweep_results.csv`. Rank on the
+`oos_*` columns; the best purely in-sample combo is overfit by construction.
 
 ### How to judge if it's worth trading
 Look for **all** of these, not just a big total return:
 - **Beats buy & hold** (`excess_vs_bh > 0`) *after* the `fee_bps` costs.
+- **Beats the momentum baseline** (`excess_vs_mom > 0`) — otherwise a dumb
+  moving-average rule earns the same without a GPU.
 - **Positive Sharpe** and a tolerable **max drawdown**.
 - **Directional hit-rate > 50%** — the forecast is genuinely informative.
 - **Stable across many tickers and regions**, not one lucky symbol.
-- Holds up **out-of-sample**: tune thresholds on an early date range, then
-  confirm on a later untouched range (don't fit the test window).
+- Holds up **out-of-sample** (`--oos-start`), not just on the tuning window.
 
 If it doesn't clear that bar zero-shot, that's a real result — consider
 fine-tuning (below) or a different horizon before risking money.

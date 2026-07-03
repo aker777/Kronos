@@ -24,6 +24,16 @@ def _cache_path(cache_dir: str, ticker: str, interval: str) -> str:
     return os.path.join(cache_dir, f"{safe}_{interval}.csv")
 
 
+def _clip(df: pd.DataFrame, start: str | None, end: str | None) -> pd.DataFrame:
+    """Restrict to [start, end] (inclusive). Applied to cached data too, so a
+    cache written for a wider range still honours the requested window."""
+    if start:
+        df = df[df["timestamps"] >= pd.Timestamp(start)]
+    if end:
+        df = df[df["timestamps"] <= pd.Timestamp(end)]
+    return df.reset_index(drop=True)
+
+
 def fetch_ohlcv(
     ticker: str,
     interval: str = "1d",
@@ -46,7 +56,7 @@ def fetch_ohlcv(
         cache_file = _cache_path(cache_dir, ticker, interval)
         if cache_file and os.path.exists(cache_file) and not refresh:
             df = pd.read_csv(cache_file, parse_dates=["timestamps"])
-            return df[KRONOS_COLS]
+            return _clip(df[KRONOS_COLS], start, end)
 
     import yfinance as yf  # imported lazily so the module loads without yfinance
 
@@ -87,7 +97,7 @@ def fetch_ohlcv(
 
     if cache_file:
         df.to_csv(cache_file, index=False)
-    return df
+    return _clip(df, start, end)
 
 
 def check_quality(
@@ -137,6 +147,7 @@ def load_ticker(ticker: str, cfg: dict, refresh: bool = False) -> pd.DataFrame:
         ticker,
         interval=d["interval"],
         start=d.get("history_start"),
+        end=d.get("history_end"),
         cache_dir=d.get("cache_dir"),
         refresh=refresh,
     )
