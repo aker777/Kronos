@@ -79,8 +79,9 @@ once with `--oos-start CUTOFF` on the untouched range.
 ## Repo / git state
 - Branch: `feature/kronos-signal-toolkit`. Commits: `4b8e79b` (toolkit),
   `14c31b4` (backtest progress + quick-run flags).
-- User's fork: `https://github.com/aker777/Kronos` (pushed via patch — the web
-  session's git token couldn't push to the fork; deliver changes as `git format-patch`).
+- User's fork: `https://github.com/aker777/Kronos`. Local sessions on the user's
+  machine can `git push` directly; only web/container sessions lack push access
+  (there, deliver changes as `git format-patch`).
 - Commit trailers required in this environment (chat-only; never in code):
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` + `Claude-Session:` line.
 
