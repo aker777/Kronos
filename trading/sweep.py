@@ -49,9 +49,20 @@ _DEFAULT_GRID = {
 
 def _model_slug(cfg: dict) -> str:
     """Short directory-safe tag for the configured model, so caches from
-    different checkpoints (zero-shot vs fine-tuned) can never mix."""
+    different checkpoints (zero-shot vs fine-tuned) can never mix.
+
+    Local checkpoints all end in generic dir names (basemodel/best_model), so
+    for those the experiment directory is folded in: e.g.
+    finetune_csv/finetuned/CW8_PA_1d/basemodel/best_model
+    -> CW8_PA_1d_basemodel_best_model. Hub ids keep their basename
+    (NeoQuasar/Kronos-small -> Kronos-small).
+    """
     name = str(cfg["model"]["name"]).rstrip("/\\")
-    return re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(name))
+    parts = re.split(r"[/\\]+", name)
+    base = parts[-1]
+    if base.lower() in ("best_model", "checkpoint", "model") and len(parts) >= 3:
+        base = "_".join(parts[-3:])
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", base)
 
 
 def _cache_path(out_dir: str, model_slug: str, ticker: str, T: float, top_p: float) -> str:
