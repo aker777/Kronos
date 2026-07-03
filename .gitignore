@@ -20,6 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -48,6 +49,7 @@ Desktop.ini
 *.parquet
 *.h5
 *.hdf5
+*.csv
 
 # Model files (large files)
 *.pth
@@ -67,6 +69,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Trading toolkit generated outputs
+trading/data_cache/
+trading/backtest_results/
+trading/signals_log.csv
 
 # Temporary files
 *.tmp

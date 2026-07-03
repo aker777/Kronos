@@ -1,0 +1,6 @@
+# Extra dependencies for the trading toolkit (on top of the repo's root requirements.txt).
+# NOTE: install `torch` separately first — see trading/README.md.
+#   RTX 50-series (Blackwell):  pip install torch --index-url https://download.pytorch.org/whl/cu128
+#   CPU only / smoke tests:     pip install torch --index-url https://download.pytorch.org/whl/cpu
+yfinance>=0.2.40
+pyyaml>=6.0

@@ -1,0 +1,70 @@
+# =============================================================================
+# Kronos Signal Toolkit — configuration
+# =============================================================================
+# Edit this file to change the model, timeframe, forecast horizon, signal
+# thresholds and the ticker universe. Everything downstream (data, backtest,
+# live signals) reads from here.
+
+# ---- Model ------------------------------------------------------------------
+model:
+  # Pretrained checkpoints on Hugging Face.
+  #   Kronos-small (24.7M, ctx 512)  -> fast, good default
+  #   Kronos-base  (102.3M, ctx 512) -> stronger, slower
+  #   Kronos-mini  (4.1M,  ctx 2048) -> long context, weakest
+  name: "NeoQuasar/Kronos-small"
+  tokenizer: "NeoQuasar/Kronos-Tokenizer-base"
+  max_context: 512          # must match the model (512 for small/base, 2048 for mini)
+  device: null              # null = auto (cuda -> mps -> cpu); or force "cuda:0" / "cpu"
+
+# ---- Timeframe & horizon ----------------------------------------------------
+data:
+  interval: "1d"            # "1d" daily (primary) or "1h" hourly (EU intraday ~730d only)
+  lookback: 400             # historical bars fed to the model (keep <= max_context)
+  pred_len: 5               # bars to forecast ahead
+  history_start: "2015-01-01"   # earliest date to fetch (daily)
+  cache_dir: "trading/data_cache"
+  # Data-quality guards (mainly for thin emerging-market names)
+  min_bars: 250             # skip tickers with fewer usable bars
+  max_gap_days: 10          # warn if consecutive daily bars are farther apart than this
+
+# ---- Signal generation ------------------------------------------------------
+signal:
+  # Predicted return over the horizon = pred_close[-1] / last_close - 1
+  buy_threshold: 0.01       # BUY  if predicted return > +1%
+  sell_threshold: -0.01     # SELL/exit if predicted return < -1%
+  sample_count: 10          # Monte-Carlo samples averaged per forecast (>=1)
+  T: 1.0                    # sampling temperature
+  top_p: 0.9                # nucleus sampling
+  min_vote: 0.6             # directional-vote confidence gate (fraction of samples agreeing)
+
+# ---- Backtest ---------------------------------------------------------------
+backtest:
+  initial_capital: 10000
+  fee_bps: 10               # round-trip-ish cost per trade, in basis points (0.10%)
+  step: 1                   # walk-forward stride in bars (1 = every bar; >1 = faster/coarser)
+  out_dir: "trading/backtest_results"
+
+# ---- Universe ---------------------------------------------------------------
+# Group by region. `tradable: true`  = directly buyable on your broker (TR / Bourse Direct).
+# `tradable: false` = research-only (forecast the underlying, trade via an ETF instead).
+universe:
+  developed_etf:
+    - { ticker: "CW8.PA",  name: "Amundi MSCI World",        tradable: true }
+    - { ticker: "PE500.PA",name: "Amundi S&P 500",           tradable: true }
+    - { ticker: "IWDA.AS", name: "iShares Core MSCI World",  tradable: true }
+  developed_stock:
+    - { ticker: "AAPL",    name: "Apple",                    tradable: true }
+    - { ticker: "MC.PA",   name: "LVMH",                     tradable: true }
+    - { ticker: "SAP.DE",  name: "SAP",                      tradable: true }
+  emerging_etf:
+    - { ticker: "EIMI.L",  name: "iShares Core MSCI EM IMI", tradable: true }
+    - { ticker: "EUNM.DE", name: "iShares MSCI EM",          tradable: true }
+  asia:
+    - { ticker: "0700.HK", name: "Tencent",                  tradable: false }
+    - { ticker: "RELIANCE.NS", name: "Reliance Industries",  tradable: false }
+    - { ticker: "005930.KS",   name: "Samsung Electronics",  tradable: false }
+  africa_mea:
+    - { ticker: "NPN.JO",  name: "Naspers (Johannesburg)",   tradable: false }
+    - { ticker: "2222.SR", name: "Saudi Aramco",             tradable: false }
+  latam:
+    - { ticker: "PETR4.SA",name: "Petrobras (Brazil)",       tradable: false }
