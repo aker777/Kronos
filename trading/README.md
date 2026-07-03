@@ -174,13 +174,44 @@ confidence. Trades are yours to place.
 
 ---
 
-## 5. Fine-tuning (later, optional)
+## 5. Fine-tuning experiment (set up — launch when ready)
 
-Zero-shot is the starting point. If backtests look promising, adapt Kronos to
-your instruments with the existing pipeline in [`../finetune_csv/`](../finetune_csv/README.md):
-export a ticker to the required CSV schema, point a YAML config at it, and run
-`python train_sequential.py --config <your.yaml>`. The RTX 5080 handles
-small/base; use Colab for larger runs.
+Two zero-shot campaigns failed the OOS gate, so fine-tuning is the remaining
+lever that could change the answer (it changes the model, not the rules).
+Everything is prepared by:
+
+```bash
+python -m trading.export_finetune                    # CW8.PA, EUNM.DE, AAPL
+python -m trading.export_finetune --tickers MC.PA    # any other ticker
+```
+
+This exports training CSVs (**data ≤ 2025-07-01 only** — the OOS year is never
+shown to training), downloads the pretrained weights locally, and writes one
+config per ticker for a **predictor-only** fine-tune (the tokenizer stays
+frozen: ~1.4k daily bars is too little to retrain a quantizer).
+
+**Launch** (from `finetune_csv\`, one per ticker, ~10–20 min each on the 5080):
+
+```powershell
+cd finetune_csv
+..\.venv\Scripts\python.exe train_sequential.py --config configs/config_CW8_PA_1d.yaml --skip-tokenizer
+```
+
+**Evaluate** — IC first, PnL second:
+
+1. Point `model.name` in `trading/config.yaml` at
+   `finetune_csv/finetuned/{TICKER}_1d/basemodel/best_model` (see the comment
+   in the config; sweep caches are tagged per model so runs never mix).
+2. `python -m trading.sweep --end 2025-07-01 --tickers <TICKER>` then
+   `python -m trading.ic_report` — **success gate: IC above the 2/√n noise
+   bar where zero-shot was ≈ 0.** If IC doesn't move, stop there.
+3. Only if the IC gate passes:
+   `python -m trading.backtest --oos-start 2025-07-01 --tickers <TICKER>` and
+   judge the OOS block against buy-and-hold *and* momentum, as always.
+
+Tweakables in `trading/export_finetune.py` flags: `--epochs` (20),
+`--batch-size` (16), `--lr` (2e-6 — deliberately gentle; raise cautiously,
+catastrophic forgetting on 1.4k bars is the main risk).
 
 ---
 

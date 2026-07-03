@@ -36,6 +36,7 @@ import pandas as pd
 from trading.backtest import simulate_positions
 from trading.config import load_config
 from trading.signals import BUY, SELL, HOLD
+from trading.sweep import _model_slug
 
 _FNAME = re.compile(r"^(?P<ticker>.+)_T(?P<T>[0-9.]+)_p(?P<top_p>[0-9.]+)$")
 
@@ -109,11 +110,14 @@ def main() -> None:
 
     cfg = load_config(args.config)
     fee = cfg["backtest"].get("fee_bps", 0) / 1e4
-    cache_dir = os.path.join(cfg["backtest"]["out_dir"], "sweep_cache")
+    slug = _model_slug(cfg)
+    cache_dir = os.path.join(cfg["backtest"]["out_dir"], "sweep_cache", slug)
     paths = sorted(glob.glob(os.path.join(cache_dir, "*.csv")))
     if not paths:
-        print(f"No sweep cache in {cache_dir} — run `python -m trading.sweep` first.")
+        print(f"No sweep cache for model '{slug}' in {cache_dir} — "
+              f"run `python -m trading.sweep` with this model first.")
         return
+    print(f"Model: {cfg['model']['name']}  (cache: {slug}, {len(paths)} files)")
 
     rows = [r for p in paths if (r := analyze_cache_file(p, fee, args.min_rows))]
     if not rows:

@@ -79,6 +79,10 @@ trading/data_cache/
 trading/backtest_results/
 trading/signals_log.csv
 
+# Fine-tuning artifacts (weights snapshots and checkpoints stay local)
+finetune_csv/pretrained/
+finetune_csv/finetuned/
+
 # Temporary files
 *.tmp
 *.temp

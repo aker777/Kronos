@@ -96,10 +96,18 @@ Beats buy-and-hold **after** `fee_bps`, positive Sharpe out-of-sample,
 directional hit-rate >50%, and **stable across many tickers/regions** (not one
 lucky symbol). No live money until that holds on a full multi-year run.
 
-## Sensible next steps (not yet built)
-- Fine-tuning on the user's instruments via `finetune_csv/` once zero-shot backtests justify it.
-- (Done: parameter sweep = `trading/sweep.py`; out-of-sample split = `--oos-start`/`--end`;
-  momentum baseline = built into `backtest.py`.)
+## Fine-tuning experiment (set up, not yet launched)
+`python -m trading.export_finetune` prepares per-ticker predictor-only
+fine-tunes (CSV ≤ 2025-07-01 in `finetune_csv/data/`, configs in
+`finetune_csv/configs/config_{TICKER}_1d.yaml`, pretrained weights snapshotted
+to `finetune_csv/pretrained/`). Launch from `finetune_csv\`:
+`..\.venv\Scripts\python.exe train_sequential.py --config configs/config_CW8_PA_1d.yaml --skip-tokenizer`
+Then evaluate per README §5: point `model.name` at the checkpoint, sweep with
+`--end 2025-07-01`, `ic_report` (gate: IC above noise), backtest `--oos-start`.
+Sweep caches are tagged per model slug (`sweep_cache/<model>/`).
+
+(Done earlier: sweep, OOS split, momentum baseline, IC report. Zero-shot failed
+the gate on developed AND EM names — see git history for both campaigns.)
 
 ## Constraints when validating changes in the cloud container
 The web/container environment **blocks egress** to `huggingface.co`,

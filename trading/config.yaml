@@ -13,6 +13,11 @@ model:
   #   Kronos-mini  (4.1M,  ctx 2048) -> long context, weakest
   name: "NeoQuasar/Kronos-small"
   tokenizer: "NeoQuasar/Kronos-Tokenizer-base"
+  # To evaluate a fine-tuned checkpoint (after running the finetune_csv
+  # experiment — see trading/README.md section 5), point at the local dirs:
+  #   name:      "finetune_csv/finetuned/CW8_PA_1d/basemodel/best_model"
+  #   tokenizer: "finetune_csv/pretrained/Kronos-Tokenizer-base"
+  # (sweep caches are tagged per model, so results never mix across checkpoints)
   max_context: 512          # must match the model (512 for small/base, 2048 for mini)
   device: null              # null = auto (cuda -> mps -> cpu); or force "cuda:0" / "cpu"
 

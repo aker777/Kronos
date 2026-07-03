@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import os
+import re
 
 import pandas as pd
 from tqdm import tqdm
@@ -46,9 +47,16 @@ _DEFAULT_GRID = {
 }
 
 
-def _cache_path(out_dir: str, ticker: str, T: float, top_p: float) -> str:
+def _model_slug(cfg: dict) -> str:
+    """Short directory-safe tag for the configured model, so caches from
+    different checkpoints (zero-shot vs fine-tuned) can never mix."""
+    name = str(cfg["model"]["name"]).rstrip("/\\")
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(name))
+
+
+def _cache_path(out_dir: str, model_slug: str, ticker: str, T: float, top_p: float) -> str:
     safe = ticker.replace("/", "_").replace(".", "_")
-    return os.path.join(out_dir, "sweep_cache", f"{safe}_T{T}_p{top_p}.csv")
+    return os.path.join(out_dir, "sweep_cache", model_slug, f"{safe}_T{T}_p{top_p}.csv")
 
 
 def collect_samples(model: KronosSignalModel, df: pd.DataFrame, cfg: dict,
@@ -69,7 +77,7 @@ def collect_samples(model: KronosSignalModel, df: pd.DataFrame, cfg: dict,
     if limit:
         idxs = idxs[:limit]
 
-    path = _cache_path(cfg["backtest"]["out_dir"], ticker, T, top_p)
+    path = _cache_path(cfg["backtest"]["out_dir"], _model_slug(cfg), ticker, T, top_p)
     want_first = pd.Timestamp(df["timestamps"].iloc[idxs[0]])
     want_last = pd.Timestamp(df["timestamps"].iloc[idxs[-1]])
     if os.path.exists(path) and not refresh:
